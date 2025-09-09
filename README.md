@@ -198,3 +198,125 @@ File upload vulnerabilities are extremely powerful and dangerous. Exploiting the
 - phpbash: https://github.com/Arrexel/phpbash
 
 
+--- 
+
+# Preventing File Upload Vulnerabilities
+
+This document summarizes secure coding practices and action points to mitigate risks from file upload functionalities.
+
+---
+
+## Extension Validation
+
+File extensions play a critical role in how files and scripts are executed. Web servers often rely on extensions to determine execution properties. Therefore, file upload functions must securely handle extension validation.
+
+- **Use both whitelists and blacklists:**
+  - Whitelists ensure only specific file types are accepted.
+  - Blacklists prevent dangerous extensions (e.g., `.php`, `.phtml`) even if whitelist validation is bypassed (e.g., `shell.php.jpg`).
+
+**Example (PHP):**
+```php
+$fileName = basename($_FILES["uploadFile"]["name"]);
+
+// blacklist test
+if (preg_match('/^.*\.ph(p|ps|ar|tml)/', $fileName)) {
+    echo "Only images are allowed";
+    die();
+}
+
+// whitelist test
+if (!preg_match('/^.*\.(jpg|jpeg|png|gif)$/', $fileName)) {
+    echo "Only images are allowed";
+    die();
+}
+```
+- Blacklist checks if the dangerous extension appears anywhere in the filename.
+- Whitelist ensures the filename ends with an allowed extension.
+- Apply validation on **both front-end and back-end**. While front-end validation can be bypassed, it reduces accidental uploads that may trigger defenses.
+
+---
+
+## Content Validation
+
+Extension validation alone is insufficient. Both the **file extension** and **file content** must be validated, ensuring they match.
+
+**Example (PHP):**
+```php
+$fileName = basename($_FILES["uploadFile"]["name"]);
+$contentType = $_FILES['uploadFile']['type'];
+$MIMEtype = mime_content_type($_FILES['uploadFile']['tmp_name']);
+
+// whitelist test
+if (!preg_match('/^.*\.png$/', $fileName)) {
+    echo "Only PNG images are allowed";
+    die();
+}
+
+// content test
+foreach (array($contentType, $MIMEtype) as $type) {
+    if (!in_array($type, array('image/png'))) {
+        echo "Only PNG images are allowed";
+        die();
+    }
+}
+```
+- Validates extension via whitelist.  
+- Confirms both `Content-Type` header and actual MIME type match the expected file type.  
+- Prevents tricks like fake magic bytes (`GIF8` headers in PHP files).  
+
+---
+
+## Upload Disclosure
+
+Avoid disclosing the **uploads directory** or providing direct access to uploaded files.
+
+- Use a dedicated download script (e.g., `download.php`) to fetch and serve files.  
+- Enforce strict authorization checks to prevent **IDOR** (Insecure Direct Object Reference).  
+- Sanitize paths to prevent **LFI** (Local File Inclusion).  
+- Deny direct access to uploads directory with a **403 Forbidden** response.
+
+**Security headers for file serving:**
+- `Content-Disposition: attachment` → forces download instead of inline rendering.  
+- `Content-Type` → ensures proper handling by the browser.  
+- `X-Content-Type-Options: nosniff` → prevents MIME sniffing.  
+
+Additional measures:
+- Randomize stored filenames, while keeping sanitized original names in the database.  
+- Store uploaded files on a **separate server or container**.  
+- Restrict PHP/webserver access using configs like `open_basedir`.  
+
+---
+
+## Further Security Recommendations
+
+- Disable dangerous functions in PHP (`exec`, `shell_exec`, `system`, `passthru`, etc.).  
+- Disable server/system error messages to avoid sensitive information disclosure.  
+- Implement application-level error handling with generic error messages.  
+- Enforce file size limits to prevent **DoS** or storage abuse.  
+- Keep libraries and dependencies updated.  
+- Scan uploaded files for malware or malicious content.  
+- Use a **WAF (Web Application Firewall)** as a secondary defense layer.  
+
+---
+
+## Checklist for Secure File Uploads
+
+- [x] Use **both whitelist and blacklist** extension validation.  
+- [x] Validate both **file extension** and **file content (MIME type)**.  
+- [x] Prevent direct access to uploaded files (use download scripts).  
+- [x] Apply strict authorization and path validation.  
+- [x] Randomize filenames and sanitize inputs.  
+- [x] Store uploads in isolated servers or containers.  
+- [x] Apply security headers when serving files.  
+- [x] Disable dangerous server functions.  
+- [x] Hide server errors and sensitive details.  
+- [x] Limit file size and scan for malware.  
+- [x] Use a WAF for additional protection.  
+
+---
+
+## Conclusion
+
+By implementing the above practices, file upload functions become significantly more secure against common attack vectors. These recommendations should be included as part of any penetration test or bug bounty remediation report.
+
+
